@@ -2,104 +2,134 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mappa Fermate</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            font-family: 'Segoe UI', sans-serif;
-        }
-        #map {
-            width: 100%;
-            height: 100vh;
-        }
-        .custom-button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 10px 15px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bus Messina</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f4f9;
+    }
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .top-bar button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .distance-info {
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .closest-stop {
+      font-weight: bold;
+      margin-top: 8px;
+      color: #e91e63;
+    }
+  </style>
 </head>
 <body>
-    <button class="custom-button" onclick="toggleLocation()">📍 Localizzazione</button>
-    <div id="map"></div>
+  <div class="top-bar">
+    <button onclick="getLocation()">📍 Attiva localizzazione</button>
+    <span id="closest-stop" class="closest-stop"></span>
+  </div>
+  <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const map = L.map('map').setView([38.1938, 15.5540], 13); // Messina
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([38.1938, 15.5540], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+    }).addTo(map);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+    let userLatLng = null;
+    const stopDataUrl = 'stops_fixed.json'; // Deve essere nel repo
 
-        let userMarker = null;
-        let locationEnabled = false;
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
 
-        function toggleLocation() {
-            if (locationEnabled) {
-                locationEnabled = false;
-                if (userMarker) {
-                    map.removeLayer(userMarker);
-                    userMarker = null;
-                }
-            } else {
-                locationEnabled = true;
-                map.locate({setView: true, maxZoom: 15});
+    function formatDistance(meters) {
+      return meters >= 1000 ? (meters / 1000).toFixed(2) + ' km' : Math.round(meters) + ' m';
+    }
+
+    fetch(stopDataUrl)
+      .then(response => response.json())
+      .then(stops => {
+        stops.forEach(stop => {
+          const marker = L.marker([stop.lat, stop.lon]).addTo(map);
+          marker.bindPopup(`<strong>${stop.name}</strong><br><a href="${stop.link}" target="_blank">Vedi fermata</a><div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`);
+        });
+      });
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition);
+      } else {
+        alert("La geolocalizzazione non è supportata dal tuo browser.");
+      }
+    }
+
+    function showPosition(position) {
+      userLatLng = [position.coords.latitude, position.coords.longitude];
+      const userMarker = L.circleMarker(userLatLng, {
+        radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
+      }).addTo(map).bindPopup("Tu sei qui").openPopup();
+      map.setView(userLatLng, 14);
+
+      fetch(stopDataUrl)
+        .then(response => response.json())
+        .then(stops => {
+          let closestStop = null;
+          let minDistance = Infinity;
+
+          stops.forEach(stop => {
+            const dist = calculateDistance(userLatLng[0], userLatLng[1], stop.lat, stop.lon);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestStop = stop;
             }
-        }
+            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, "_"));
+            if (el) el.innerText = "Distanza: " + formatDistance(dist);
+          });
 
-        map.on('locationfound', function(e) {
-            if (userMarker) map.removeLayer(userMarker);
-            userMarker = L.marker(e.latlng).addTo(map).bindPopup("Tu sei qui").openPopup();
-            updateDistances(e.latlng);
+          if (closestStop) {
+            document.getElementById('closest-stop').innerText =
+              `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
+          }
         });
-
-        map.on('locationerror', function() {
-            alert("Impossibile ottenere la tua posizione.");
-        });
-
-        function updateDistances(userLatLng) {
-            document.querySelectorAll('.stop-marker').forEach(el => {
-                const lat = parseFloat(el.dataset.lat);
-                const lng = parseFloat(el.dataset.lng);
-                const distance = map.distance(userLatLng, L.latLng(lat, lng));
-                const km = distance >= 1000 ? (distance / 1000).toFixed(2) + " km" : Math.round(distance) + " m";
-                el.innerHTML = el.dataset.name + "<br><small>Distanza: " + km + "</small><br><a href='" + el.dataset.link + "' target='_blank'>Vai alla fermata</a>";
-            });
-        }
-
-        // Carica fermate da stops_fixed.json
-        fetch('stops_fixed.json')
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(stop => {
-                    const marker = L.marker([stop.lat, stop.lon]).addTo(map);
-                    const div = document.createElement('div');
-                    div.className = 'stop-marker';
-                    div.dataset.lat = stop.lat;
-                    div.dataset.lng = stop.lon;
-                    div.dataset.name = stop.name;
-                    div.dataset.link = stop.link;
-                    div.innerHTML = stop.name + "<br><a href='" + stop.link + "' target='_blank'>Vai alla fermata</a>";
-                    marker.bindPopup(div);
-                });
-            })
-            .catch(err => {
-                console.error("Errore nel caricamento delle fermate:", err);
-            });
-    </script>
+    }
+  </script>
 </body>
 </html>
