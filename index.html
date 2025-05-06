@@ -16,17 +16,19 @@
       text-decoration: underline;
       color: #007bff !important;
     }
-    /* Stile per il campo di ricerca */
-    #search-container {
+    /* Stile per il campo di ricerca e il pulsante */
+    #controls {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
       background: white;
-      padding: 5px;
+      padding: 8px;
       border-radius: 4px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      display: flex;
+      gap: 8px;
     }
     #search {
       width: 200px;
@@ -34,11 +36,23 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+    #geo-toggle {
+      padding: 4px 8px;
+      border: none;
+      background: #007bff;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #geo-toggle.inactive {
+      background: #6c757d;
+    }
   </style>
 </head>
 <body>
-  <div id="search-container">
+  <div id="controls">
     <input id="search" type="text" placeholder="Cerca fermata..." />
+    <button id="geo-toggle" class="inactive">Attiva localizzazione</button>
   </div>
   <div id="map"></div>
 
@@ -46,21 +60,16 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     // Variabili globali
-    var map;
-    var stops = [];
-    var userPosition = null;
+    var map, stops = [], userPosition = null;
+    var geoActive = false;
 
-    // 1. Inizializza la mappa
-    map = L.map('map', {
-      center: [38.2, 15.55],
-      zoom: 12,
-      tap: false
-    });
+    // Inizializza la mappa
+    map = L.map('map', { center: [38.2, 15.55], zoom: 12, tap: false });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // 2. Carica i dati delle fermate
+    // Carica i dati delle fermate
     fetch('stops_fixed.json')
       .then(res => res.json())
       .then(data => {
@@ -73,27 +82,40 @@
           );
           marker.on('click touchstart', () => marker.openPopup());
         });
-        map.locate({ setView: false, watch: false, maxZoom: 14, enableHighAccuracy: true });
       })
       .catch(err => console.error('Errore nel caricamento dei dati:', err));
 
-    // 3. Geolocalizzazione trovata
+    // Pulsante per attivare/disattivare geolocalizzazione
+    var btnGeo = document.getElementById('geo-toggle');
+    btnGeo.addEventListener('click', function() {
+      if (!geoActive) {
+        map.locate({ setView: false, watch: false, maxZoom: 14, enableHighAccuracy: true });
+      } else {
+        map.stopLocate();
+        btnGeo.textContent = 'Attiva localizzazione';
+        btnGeo.classList.add('inactive');
+        geoActive = false;
+      }
+    });
+
+    // Gestione eventi geolocalizzazione
     map.on('locationfound', function(e) {
+      geoActive = true;
+      btnGeo.textContent = 'Disattiva localizzazione';
+      btnGeo.classList.remove('inactive');
       userPosition = e.latlng;
-      // popup automatico sulla fermata più vicina
       showNearestStop(userPosition);
     });
     map.on('locationerror', function(e) {
-      console.warn('Impossibile recuperare la tua posizione:', e.message);
+      alert('Impossibile recuperare la posizione: ' + e.message);
     });
 
-    // Funzione per mostrare la fermata più vicina
+    // Funzioni di utilità
     function showNearestStop(pos) {
-      var nearest = null;
-      var minDist = Infinity;
-      stops.forEach(function(stop) {
-        var d = pos.distanceTo(L.latLng(stop.lat, stop.lon));
-        if (d < minDist) { minDist = d; nearest = stop; }
+      var nearest = null, minDist = Infinity;
+      stops.forEach(s => {
+        var d = pos.distanceTo(L.latLng(s.lat, s.lon));
+        if (d < minDist) { minDist = d; nearest = s; }
       });
       if (nearest) {
         map.setView([nearest.lat, nearest.lon], 14);
@@ -101,34 +123,27 @@
       }
     }
 
-    // Funzione per aprire popup con distanza formattata
     function openPopupWithDistance(stop, dist) {
       var distText = dist < 1000 ? Math.round(dist) + ' m' : (dist/1000).toFixed(2) + ' km';
-      var content =
-        '<strong>' + stop.name + '</strong><br>' +
-        '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
-        '<em>Distanza: ' + distText + '</em>';
+      var content = '<strong>' + stop.name + '</strong><br>' +
+                    '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
+                    '<em>Distanza: ' + distText + '</em>';
       L.popup({ offset: [0, -10] })
-        .setLatLng([stop.lat, stop.lon])
-        .setContent(content)
-        .openOn(map);
+       .setLatLng([stop.lat, stop.lon])
+       .setContent(content)
+       .openOn(map);
     }
 
-    // 4. Ricerca delle fermate
-    var searchInput = document.getElementById('search');
-    searchInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && searchInput.value.trim()) {
-        var query = searchInput.value.trim().toLowerCase();
-        var match = stops.find(function(s) { return s.name.toLowerCase().includes(query); });
-        if (!match) {
-          alert('Nessuna fermata trovata per "' + searchInput.value + '"');
-        } else if (!userPosition) {
-          alert('Posizione utente non disponibile. Ricarica la pagina e consenti la geolocalizzazione.');
-        } else {
-          var d = userPosition.distanceTo(L.latLng(match.lat, match.lon));
-          map.setView([match.lat, match.lon], 14);
-          openPopupWithDistance(match, d);
-        }
+    // Ricerca delle fermate
+    document.getElementById('search').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        var q = this.value.trim().toLowerCase();
+        var match = stops.find(s => s.name.toLowerCase().includes(q));
+        if (!match) return alert('Nessuna fermata trovata.');
+        if (!userPosition) return alert('Consenti la localizzazione o attivala con il pulsante.');
+        var d = userPosition.distanceTo(L.latLng(match.lat, match.lon));
+        map.setView([match.lat, match.lon], 14);
+        openPopupWithDistance(match, d);
       }
     });
   </script>
