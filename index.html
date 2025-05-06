@@ -1,59 +1,135 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+
+<!DOCTYPE html>
+<html lang="it">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.5">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 16.0px 'Apple Color Emoji'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #359630}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 16.0px 'Apple Color Emoji'; color: #ffffff; -webkit-text-stroke: #ffffff}
-    p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; -webkit-text-stroke: #000000; min-height: 14.0px}
-    span.s1 {font-kerning: none}
-    span.s2 {font-kerning: none; background-color: #359630}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bus Messina</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4f4f9;
+    }
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .top-bar button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 20px;
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .distance-info {
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .closest-stop {
+      font-weight: bold;
+      margin-top: 8px;
+      color: #e91e63;
+    }
   </style>
 </head>
 <body>
-<p class="p1"><span class="s1">&lt;!DOCTYPE html&gt;</span></p>
-<p class="p1"><span class="s1">&lt;html lang="it"&gt;</span></p>
-<p class="p1"><span class="s1">&lt;head&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8" /&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0" /&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;title&gt;Bus Messina&lt;/title&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" /&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;style&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>body {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>margin: 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>font-family: 'Segoe UI', sans-serif;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background-color: #f4f4f9;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>#map {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>height: 100vh;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>width: 100%;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.top-bar {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>position: absolute;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>top: 10px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>left: 50%;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>transform: translateX(-50%);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background: white;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 10px 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>box-shadow: 0 2px 10px rgba(0,0,0,0.1);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>z-index: 1000;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>display: flex;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>gap: 10px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>align-items: center;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>.top-bar button {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>padding: 8px 16px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border: none;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>border-radius: 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>background-color: #4CAF50;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>color: white;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>font-weight: bold;</span></p>
-<p class="p2"><span class="s2"><span class="Apple-converted-space">      </span>cursor: pointer;</span></p>
-<p class="p3"><span class="s1"></span><br></p>
+  <div class="top-bar">
+    <button onclick="getLocation()">📍 Attiva localizzazione</button>
+    <span id="closest-stop" class="closest-stop"></span>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([38.1938, 15.5540], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+    }).addTo(map);
+
+    let userLatLng = null;
+    const stopDataUrl = 'stops_fixed.json'; // Deve essere nel repo
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function formatDistance(meters) {
+      return meters >= 1000 ? (meters / 1000).toFixed(2) + ' km' : Math.round(meters) + ' m';
+    }
+
+    fetch(stopDataUrl)
+      .then(response => response.json())
+      .then(stops => {
+        stops.forEach(stop => {
+          const marker = L.marker([stop.lat, stop.lon]).addTo(map);
+          marker.bindPopup(`<strong>${stop.name}</strong><br><a href="${stop.link}" target="_blank">Vedi fermata</a><div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`);
+        });
+      });
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition);
+      } else {
+        alert("La geolocalizzazione non è supportata dal tuo browser.");
+      }
+    }
+
+    function showPosition(position) {
+      userLatLng = [position.coords.latitude, position.coords.longitude];
+      const userMarker = L.circleMarker(userLatLng, {
+        radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
+      }).addTo(map).bindPopup("Tu sei qui").openPopup();
+      map.setView(userLatLng, 14);
+
+      fetch(stopDataUrl)
+        .then(response => response.json())
+        .then(stops => {
+          let closestStop = null;
+          let minDistance = Infinity;
+
+          stops.forEach(stop => {
+            const dist = calculateDistance(userLatLng[0], userLatLng[1], stop.lat, stop.lon);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestStop = stop;
+            }
+            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, "_"));
+            if (el) el.innerText = "Distanza: " + formatDistance(dist);
+          });
+
+          if (closestStop) {
+            document.getElementById('closest-stop').innerText =
+              `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
+          }
+        });
+    }
+  </script>
 </body>
 </html>
