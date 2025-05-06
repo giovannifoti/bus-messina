@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mappa delle fermate</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    /* Stile per il contenitore della mappa */
+    #map { height: 100vh; width: 100%; }
+    /* Forza visibilità dei link nei popup */
+    .leaflet-popup-content a {
+      display: inline-block;
+      margin-top: 4px;
+      text-decoration: underline;
+      color: #007bff !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // 1. Inizializza la mappa
+    var map = L.map('map', {
+      center: [38.2, 15.55],
+      zoom: 12,
+      tap: false // disabilita hack di Leaflet per tap sui dispositivi touch
+    });
+
+    // Aggiungi il layer di base (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Array per salvare le fermate caricate
+    var stops = [];
+
+    // 2. Carica i dati JSON delle fermate
+    fetch('stops_fixed.json')
+      .then(function(res) {
+        console.log('Status:', res.status, res.headers.get('Content-Type'));
+        return res.json();
+      })
+      .then(function(data) {
+        stops = data;
+        console.log('Ho ricevuto', data.length, 'fermate:', data);
+
+        data.forEach(function(stop) {
+          console.log('Binding popup per:', stop.name, stop.url);
+          var marker = L.marker([stop.lat, stop.lon]).addTo(map);
+          marker.bindPopup(
+            '<strong>' + stop.name + '</strong><br>' +
+            '<a href="' + stop.url + '" target="_blank">Apri fermata</a>'
+          );
+          marker.on('click touchstart', function() { marker.openPopup(); });
+        });
+
+        // 3. Avvia geolocazione solo dopo aver caricato le fermate
+        map.locate({
+          setView: false,
+          watch: false,
+          maxZoom: 14,
+          enableHighAccuracy: true
+        });
+      })
+      .catch(function(err) {
+        console.error('Errore nel caricamento dei dati:', err);
+      });
+
+    // 4. Evento geolocazione trovata
+    map.on('locationfound', function(e) {
+      var userLatLng = e.latlng;
+      var nearest = null;
+      var minDist = Infinity;
+
+      stops.forEach(function(stop) {
+        var d = userLatLng.distanceTo(L.latLng(stop.lat, stop.lon));
+        if (d < minDist) {
+          minDist = d;
+          nearest = stop;
+        }
+      });
+
+      if (nearest) {
+        // Centra sulla fermata più vicina
+        map.setView([nearest.lat, nearest.lon], 14);
+
+        // Popup personalizzato
+        var popupContent =
+          '<strong>' + nearest.name + '</strong><br>' +
+          '<a href="' + nearest.url + '" target="_blank">Apri fermata</a><br>' +
+          '<em>Sei a ' + Math.round(minDist) + ' m da qui</em>';
+
+        L.popup({ offset: [0, -10] })
+         .setLatLng([nearest.lat, nearest.lon])
+         .setContent(popupContent)
+         .openOn(map);
+      }
+    });
+
+    // 5. Errore geolocazione
+    map.on('locationerror', function(e) {
+      console.warn('Impossibile recuperare la tua posizione:', e.message);
+      // Fallback: mantieni vista iniziale
+    });
+  </script>
+</body>
+</html>
