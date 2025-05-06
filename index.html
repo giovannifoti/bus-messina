@@ -55,6 +55,7 @@
     <button id="geo-toggle" class="inactive">Attiva localizzazione</button>
   </div>
   <div id="map"></div>
+<div id="nearest-stops" style="padding: 10px; font-family: sans-serif;"></div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -89,7 +90,7 @@
     var btnGeo = document.getElementById('geo-toggle');
     btnGeo.addEventListener('click', function() {
       if (!geoActive) {
-        map.locate({ setView: false, watch: false, maxZoom: 14, enableHighAccuracy: true });
+        map.locate({ setView: false, watch: true, maxZoom: 14, enableHighAccuracy: true });
       } else {
         map.stopLocate();
         btnGeo.textContent = 'Attiva localizzazione';
@@ -99,7 +100,67 @@
     });
 
     // Gestione eventi geolocalizzazione
+    
+    
     map.on('locationfound', function(e) {
+      userPosition = e.latlng;
+      geoActive = true;
+      btnGeo.textContent = 'Disattiva localizzazione';
+      btnGeo.classList.remove('inactive');
+
+      // aggiorna lista fermate vicine
+      if (stops && stops.length) {
+        var sorted = [...stops].map(stop => {
+          var d = userPosition.distanceTo([stop.lat, stop.lon]);
+          return { ...stop, distance: d };
+        }).sort((a, b) => a.distance - b.distance);
+
+        var listHtml = '<h3>Fermate più vicine</h3><ol>';
+        sorted.slice(0, 10).forEach(stop => {
+          var d = stop.distance < 1000 ? Math.round(stop.distance) + ' m' : (stop.distance/1000).toFixed(2) + ' km';
+          listHtml += '<li><strong>' + stop.name + '</strong> – ' + d + '</li>';
+        });
+        listHtml += '</ol>';
+        document.getElementById('nearest-stops').innerHTML = listHtml;
+      }
+
+      // aggiorna popup aperti se ci sono
+      var openedPopup = map._popup;
+      if (openedPopup && openedPopup.getLatLng) {
+        var latlng = openedPopup.getLatLng();
+        var stop = stops.find(s => Math.abs(s.lat - latlng.lat) < 0.0001 && Math.abs(s.lon - latlng.lng) < 0.0001);
+        if (stop) {
+          var d = userPosition.distanceTo([stop.lat, stop.lon]);
+          var distText = d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(2) + ' km';
+          openedPopup.setContent(
+            '<strong>' + stop.name + '</strong><br>' +
+            '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
+            '<em>Distanza: ' + distText + '</em>'
+          );
+        }
+      }
+
+      userPosition = e.latlng;
+      geoActive = true;
+      btnGeo.textContent = 'Disattiva localizzazione';
+      btnGeo.classList.remove('inactive');
+
+      // aggiorna popup esistenti se sono aperti
+      var openedPopup = map._popup;
+      if (openedPopup && openedPopup.getLatLng) {
+        var latlng = openedPopup.getLatLng();
+        var stop = stops.find(s => Math.abs(s.lat - latlng.lat) < 0.0001 && Math.abs(s.lon - latlng.lng) < 0.0001);
+        if (stop) {
+          var d = userPosition.distanceTo([stop.lat, stop.lon]);
+          var distText = d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(2) + ' km';
+          openedPopup.setContent(
+            '<strong>' + stop.name + '</strong><br>' +
+            '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
+            '<em>Distanza: ' + distText + '</em>'
+          );
+        }
+      }
+
       geoActive = true;
       btnGeo.textContent = 'Disattiva localizzazione';
       btnGeo.classList.remove('inactive');
