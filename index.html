@@ -1,212 +1,153 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mappa delle fermate</title>
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="utf-8" />
+  <title>Bus Messina</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-pMprNYk6YdS+eY59EeDav2dffYqjU3GkNf5xZt7rjDs="
+    crossorigin=""
+  />
   <style>
-    /* Stile per il contenitore della mappa */
-    #map { height: 100vh; width: 100%; }
-    /* Forza visibilità dei link nei popup */
-    .leaflet-popup-content a {
-      display: inline-block;
-      margin-top: 4px;
-      text-decoration: underline;
-      color: #007bff !important;
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
     }
-    /* Stile per il campo di ricerca e il pulsante */
-    #controls {
+
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    .controls {
       position: absolute;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
       background: white;
-      padding: 8px;
-      border-radius: 4px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      padding: 10px 15px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
       display: flex;
-      gap: 8px;
+      gap: 10px;
+      font-weight: bold;
     }
-    #search {
-      width: 200px;
-      padding: 4px 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    #geo-toggle {
-      padding: 4px 8px;
+
+    .controls button {
       border: none;
       background: #007bff;
       color: white;
-      border-radius: 4px;
+      padding: 8px 12px;
+      border-radius: 10px;
       cursor: pointer;
+      font-weight: bold;
     }
-    #geo-toggle.inactive {
-      background: #6c757d;
+
+    .controls button:hover {
+      background: #0056b3;
+    }
+
+    .distance-info {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      padding: 4px 6px;
+      font-size: 12px;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <input id="search" type="text" placeholder="Cerca fermata..." />
-    <button id="geo-toggle" class="inactive">Attiva localizzazione</button>
-  </div>
   <div id="map"></div>
-<div id="nearest-stops" style="padding: 10px; font-family: sans-serif;"></div>
+  <div class="controls">
+    <button onclick="toggleLocation()">📍 Localizza</button>
+  </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kGStGZrYRXm0tv5c6FiEdYpXL2Lk+M04o8G1w="
+    crossorigin=""
+  ></script>
   <script>
-    // Variabili globali
-    var map, stops = [], userPosition = null;
-    var geoActive = false;
+    const map = L.map("map").setView([38.1938, 15.5540], 13);
 
-    // Inizializza la mappa
-    map = L.map('map', { center: [38.2, 15.55], zoom: 12, tap: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    // Carica i dati delle fermate
-    fetch('stops_fixed.json')
-      .then(res => res.json())
-      .then(data => {
-        stops = data;
-        data.forEach(stop => {
-          var marker = L.marker([stop.lat, stop.lon]).addTo(map);
-          marker.bindPopup(
-            '<strong>' + stop.name + '</strong><br>' +
-            '<a href="' + stop.url + '" target="_blank">Apri fermata</a>'
-          );
-          marker.on('click touchstart', () => marker.openPopup());
-        });
-      })
-      .catch(err => console.error('Errore nel caricamento dei dati:', err));
+    let userMarker = null;
+    let userCoords = null;
+    let locationEnabled = false;
 
-    // Pulsante per attivare/disattivare geolocalizzazione
-    var btnGeo = document.getElementById('geo-toggle');
-    btnGeo.addEventListener('click', function() {
-      if (!geoActive) {
-        map.locate({ setView: false, watch: true, maxZoom: 14, enableHighAccuracy: true });
+    function toggleLocation() {
+      if (locationEnabled) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+        userCoords = null;
+        locationEnabled = false;
       } else {
-        map.stopLocate();
-        btnGeo.textContent = 'Attiva localizzazione';
-        btnGeo.classList.add('inactive');
-        geoActive = false;
-      }
-    });
-
-    // Gestione eventi geolocalizzazione
-    
-    
-    map.on('locationfound', function(e) {
-      userPosition = e.latlng;
-      geoActive = true;
-      btnGeo.textContent = 'Disattiva localizzazione';
-      btnGeo.classList.remove('inactive');
-
-      // aggiorna lista fermate vicine
-      if (stops && stops.length) {
-        var sorted = [...stops].map(stop => {
-          var d = userPosition.distanceTo([stop.lat, stop.lon]);
-          return { ...stop, distance: d };
-        }).sort((a, b) => a.distance - b.distance);
-
-        var listHtml = '<h3>Fermate più vicine</h3><ol>';
-        sorted.slice(0, 10).forEach(stop => {
-          var d = stop.distance < 1000 ? Math.round(stop.distance) + ' m' : (stop.distance/1000).toFixed(2) + ' km';
-          listHtml += '<li><strong>' + stop.name + '</strong> – ' + d + '</li>';
-        });
-        listHtml += '</ol>';
-        document.getElementById('nearest-stops').innerHTML = listHtml;
-      }
-
-      // aggiorna popup aperti se ci sono
-      var openedPopup = map._popup;
-      if (openedPopup && openedPopup.getLatLng) {
-        var latlng = openedPopup.getLatLng();
-        var stop = stops.find(s => Math.abs(s.lat - latlng.lat) < 0.0001 && Math.abs(s.lon - latlng.lng) < 0.0001);
-        if (stop) {
-          var d = userPosition.distanceTo([stop.lat, stop.lon]);
-          var distText = d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(2) + ' km';
-          openedPopup.setContent(
-            '<strong>' + stop.name + '</strong><br>' +
-            '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
-            '<em>Distanza: ' + distText + '</em>'
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              userCoords = [position.coords.latitude, position.coords.longitude];
+              userMarker = L.marker(userCoords)
+                .addTo(map)
+                .bindPopup("Sei qui")
+                .openPopup();
+              map.setView(userCoords, 14);
+              locationEnabled = true;
+              showDistances();
+            },
+            () => {
+              alert("Localizzazione non disponibile");
+            }
           );
         }
       }
+    }
 
-      userPosition = e.latlng;
-      geoActive = true;
-      btnGeo.textContent = 'Disattiva localizzazione';
-      btnGeo.classList.remove('inactive');
+    function showDistances() {
+      if (!userCoords) return;
 
-      // aggiorna popup esistenti se sono aperti
-      var openedPopup = map._popup;
-      if (openedPopup && openedPopup.getLatLng) {
-        var latlng = openedPopup.getLatLng();
-        var stop = stops.find(s => Math.abs(s.lat - latlng.lat) < 0.0001 && Math.abs(s.lon - latlng.lng) < 0.0001);
-        if (stop) {
-          var d = userPosition.distanceTo([stop.lat, stop.lon]);
-          var distText = d < 1000 ? Math.round(d) + ' m' : (d/1000).toFixed(2) + ' km';
-          openedPopup.setContent(
-            '<strong>' + stop.name + '</strong><br>' +
-            '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
-            '<em>Distanza: ' + distText + '</em>'
-          );
-        }
-      }
+      markers.forEach((marker) => {
+        const stopCoords = marker.getLatLng();
+        const distance = map.distance(userCoords, stopCoords);
+        const formatted =
+          distance >= 1000
+            ? (distance / 1000).toFixed(2) + " km"
+            : Math.round(distance) + " m";
 
-      geoActive = true;
-      btnGeo.textContent = 'Disattiva localizzazione';
-      btnGeo.classList.remove('inactive');
-      userPosition = e.latlng;
-      showNearestStop(userPosition);
-    });
-    map.on('locationerror', function(e) {
-      alert('Impossibile recuperare la posizione: ' + e.message);
-    });
-
-    // Funzioni di utilità
-    function showNearestStop(pos) {
-      var nearest = null, minDist = Infinity;
-      stops.forEach(s => {
-        var d = pos.distanceTo(L.latLng(s.lat, s.lon));
-        if (d < minDist) { minDist = d; nearest = s; }
+        const popupContent =
+          marker.options.popupContent +
+          `<div class="distance-info">Distanza: ${formatted}</div>`;
+        marker.setPopupContent(popupContent);
       });
-      if (nearest) {
-        map.setView([nearest.lat, nearest.lon], 14);
-        openPopupWithDistance(nearest, minDist);
-      }
     }
 
-    function openPopupWithDistance(stop, dist) {
-      var distText = dist < 1000 ? Math.round(dist) + ' m' : (dist/1000).toFixed(2) + ' km';
-      var content = '<strong>' + stop.name + '</strong><br>' +
-                    '<a href="' + stop.url + '" target="_blank">Apri fermata</a><br>' +
-                    '<em>Distanza: ' + distText + '</em>';
-      L.popup({ offset: [0, -10] })
-       .setLatLng([stop.lat, stop.lon])
-       .setContent(content)
-       .openOn(map);
-    }
+    const markers = [];
 
-    // Ricerca delle fermate
-    document.getElementById('search').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        var q = this.value.trim().toLowerCase();
-        var match = stops.find(s => s.name.toLowerCase().includes(q));
-        if (!match) return alert('Nessuna fermata trovata.');
-        if (!userPosition) return alert('Consenti la localizzazione o attivala con il pulsante.');
-        var d = userPosition.distanceTo(L.latLng(match.lat, match.lon));
-        map.setView([match.lat, match.lon], 14);
-        openPopupWithDistance(match, d);
-      }
-    });
+    fetch("stops_fixed.json")
+      .then((response) => response.json())
+      .then((data) => {
+        data.forEach((stop) => {
+          const marker = L.marker([stop.lat, stop.lon])
+            .addTo(map)
+            .bindPopup(`<a href="${stop.link}" target="_blank">${stop.name}</a>`);
+          marker.options.popupContent = `<a href="${stop.link}" target="_blank">${stop.name}</a>`;
+          markers.push(marker);
+        });
+
+        if (locationEnabled && userCoords) {
+          showDistances();
+        }
+      })
+      .catch((error) => {
+        console.error("Errore nel caricamento dei dati:", error);
+      });
   </script>
 </body>
 </html>
