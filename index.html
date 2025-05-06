@@ -1,179 +1,23 @@
-<!DOCTYPE html>
-<html lang="it">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bus Messina</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #f4f4f9 0%, #e2e8f0 100%);
-    }
-    #map {
-      height: 100vh;
-      width: 100%;
-      border-radius: 15px;
-      overflow: hidden;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-    .top-bar {
-      position: absolute;
-      top: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255,255,255,0.8);
-      backdrop-filter: blur(8px);
-      padding: 12px 24px;
-      border-radius: 30px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-      z-index: 1000;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-    .top-bar button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 30px;
-      background-color: #4CAF50;
-      color: white;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s, transform 0.2s;
-    }
-    .top-bar button:hover {
-      background-color: #45a049;
-      transform: translateY(-2px);
-    }
-    .top-bar button:disabled {
-      background-color: #6c757d;
-      cursor: default;
-      opacity: 0.8;
-    }
-    .distance-info {
-      font-size: 14px;
-      margin-top: 4px;
-      color: #333;
-    }
-    .closest-stop {
-      font-size: 14px;
-      font-weight: bold;
-      color: #e91e63;
-    }
-    /* Popup styling */
-    .leaflet-popup-content-wrapper {
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      font-size: 14px;
-    }
-    .leaflet-popup-tip {
-      background: #fff;
-    }
-    /* Marker fade-in */
-    .leaflet-marker-icon {
-      opacity: 0;
-      transition: opacity 0.6s ease-out, transform 0.3s ease-out;
-    }
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2575.5">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: center; font: 16.0px 'Helvetica Neue'; color: #ffffff; -webkit-text-stroke: #ffffff; background-color: #40a33f}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 14.0px Helvetica; color: #e00051; -webkit-text-stroke: #e00051; min-height: 17.0px}
+    p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; -webkit-text-stroke: #000000; min-height: 14.0px}
+    span.s1 {font: 16.0px '.Apple Color Emoji UI'; font-kerning: none}
+    span.s2 {font-kerning: none}
   </style>
 </head>
 <body>
-  <div class="top-bar">
-    <button id="loc-button" onclick="getLocation()">📍 Attiva localizzazione</button>
-    <span id="closest-stop" class="closest-stop"></span>
-  </div>
-  <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([38.1938, 15.5540], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-    }).addTo(map);
-
-    let userLatLng = null;
-    const stopDataUrl = 'stops_fixed.json';
-
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371e3;
-      const φ1 = lat1 * Math.PI / 180;
-      const φ2 = lat2 * Math.PI / 180;
-      const Δφ = (lat2 - lat1) * Math.PI / 180;
-      const Δλ = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    }
-
-    function formatDistance(meters) {
-      return meters >= 1000 ? (meters / 1000).toFixed(2) + ' km' : Math.round(meters) + ' m';
-    }
-
-    // Carica le fermate e aggiunge i marker
-    fetch(stopDataUrl)
-      .then(response => response.json())
-      .then(stops => {
-        stops.forEach(stop => {
-          const marker = L.marker([stop.lat, stop.lon]).addTo(map);
-          // Fade-in all markers
-          marker.on('add', () => {
-            requestAnimationFrame(() => {
-              marker._icon.style.opacity = 1;
-            });
-          });
-          marker.bindPopup(
-            `<strong>${stop.name}</strong><br>` +
-            `<a href="${stop.url}" target="_blank">Vedi fermata</a>` +
-            `<div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`
-          );
-        });
-      });
-
-    function getLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(showPosition, () => alert("Impossibile ottenere la posizione."), { enableHighAccuracy: true });
-      } else {
-        alert("La geolocalizzazione non è supportata dal tuo browser.");
-      }
-    }
-
-    function showPosition(position) {
-      userLatLng = [position.coords.latitude, position.coords.longitude];
-      const btn = document.getElementById('loc-button');
-      btn.innerText = '📍 Localizzazione attivata';
-      btn.disabled = true;
-
-      const userMarker = L.circleMarker(userLatLng, {
-        radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9
-      }).addTo(map).bindPopup("Tu sei qui").openPopup();
-      map.setView(userLatLng, 14);
-
-      fetch(stopDataUrl)
-        .then(response => response.json())
-        .then(stops => {
-          let closestStop = null;
-          let minDistance = Infinity;
-
-          stops.forEach(stop => {
-            const dist = calculateDistance(userLatLng[0], userLatLng[1], stop.lat, stop.lon);
-            if (dist < minDistance) {
-              minDistance = dist;
-              closestStop = stop;
-            }
-            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, '_'));
-            if (el) el.innerText = "Distanza: " + formatDistance(dist);
-          });
-
-          if (closestStop) {
-            document.getElementById('closest-stop').innerText =
-              `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
-          }
-        });
-    }
-  </script>
+<p class="p1"><span class="s1">📍</span><span class="s2"><b> Attiva localizzazione</b></span></p>
+<p class="p2"><span class="s2"><b></b></span><br></p>
+<p class="p3"><span class="s2"></span><br></p>
+<p class="p3"><span class="s2"></span><br></p>
 </body>
 </html>
