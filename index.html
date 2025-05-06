@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -52,7 +51,8 @@
 </head>
 <body>
   <div class="top-bar">
-    <button onclick="getLocation()">📍 Attiva localizzazione</button>
+    <!-- Added id for button to allow text change -->
+    <button id="locBtn" onclick="getLocation()">📍 Attiva localizzazione</button>
     <span id="closest-stop" class="closest-stop"></span>
   </div>
   <div id="map"></div>
@@ -89,7 +89,12 @@
       .then(stops => {
         stops.forEach(stop => {
           const marker = L.marker([stop.lat, stop.lon]).addTo(map);
-          marker.bindPopup(`<strong>${stop.name}</strong><br><a href="${stop.link}" target="_blank">Vedi fermata</a><div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`);
+          // Fix: usa stop.url invece di stop.link
+          marker.bindPopup(
+            `<strong>${stop.name}</strong><br>` +
+            `<a href="${stop.url}" target="_blank">Vedi fermata</a>` +
+            `<div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`
+          );
         });
       });
 
@@ -108,6 +113,11 @@
       }).addTo(map).bindPopup("Tu sei qui").openPopup();
       map.setView(userLatLng, 14);
 
+      // Cambia testo del pulsante una volta attivata la geolocalizzazione
+      const btn = document.getElementById('locBtn');
+      btn.innerText = '📍 Localizzazione attiva';
+      btn.disabled = true; // opzionale, disabilita per evitare ulteriori click
+
       fetch(stopDataUrl)
         .then(response => response.json())
         .then(stops => {
@@ -120,7 +130,7 @@
               minDistance = dist;
               closestStop = stop;
             }
-            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, "_"));
+            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, '_'));
             if (el) el.innerText = "Distanza: " + formatDistance(dist);
           });
 
