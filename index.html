@@ -66,10 +66,10 @@
       font-weight: bold;
       cursor: pointer;
     }
-    .closest-stop {
+    .closest-stop a {
       font-weight: bold;
-      margin-top: 8px;
       color: #e91e63;
+      text-decoration: none;
     }
     .distance-info {
       font-size: 14px;
@@ -84,12 +84,15 @@
   </div>
   <div class="top-bar">
     <button id="locBtn">📍 Attiva localizzazione</button>
-    <span id="closest-stop" class="closest-stop"></span>
+    <div id="closest-stop" class="closest-stop"></div>
   </div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    // Lettura preferiti da localStorage
+    let favStops = JSON.parse(localStorage.getItem('favStops')) || [];
+
     const map = L.map('map').setView([38.1938, 15.5540], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
@@ -103,7 +106,6 @@
     });
 
     const markerMap = {};
-    let favStops = [];
     const stopDataUrl = 'stops_fixed.json';
 
     function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -112,9 +114,9 @@
       const φ2 = lat2 * Math.PI / 180;
       const Δφ = (lat2 - lat1) * Math.PI / 180;
       const Δλ = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      const a = Math.sin(Δφ / 2) ** 2 +
                 Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+                Math.sin(Δλ / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
@@ -123,12 +125,14 @@
       return meters >= 1000 ? (meters / 1000).toFixed(2) + ' km' : Math.round(meters) + ' m';
     }
 
-    // Carica le fermate e crea i marker
+    // Carica le fermate, crea i marker e applica le preferenze salvate
     fetch(stopDataUrl)
       .then(response => response.json())
       .then(stops => {
         stops.forEach(stop => {
-          const marker = L.marker([stop.lat, stop.lon], { icon: defaultIcon }).addTo(map);
+          const isFav = favStops.includes(stop.name);
+          const marker = L.marker([stop.lat, stop.lon], { icon: isFav ? starIcon : defaultIcon }).addTo(map);
+          markerMap[stop.name] = marker;
           const popupContent = `
             <strong>${stop.name}</strong><br>
             <a href="${stop.url}" target="_blank">Vedi fermata</a><br>
@@ -136,8 +140,8 @@
             <div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>
           `;
           marker.bindPopup(popupContent);
-          markerMap[stop.name] = marker;
         });
+        updateSidebar();
       });
 
     // Aggiorna la sidebar dei preferiti
@@ -156,13 +160,13 @@
         });
         list.appendChild(li);
       });
+      localStorage.setItem('favStops', JSON.stringify(favStops));
     }
 
     // Gestione del click sui bottoni 'fav-btn' nei popup
     map.on('popupopen', e => {
       const btn = e.popup._contentNode.querySelector('.fav-btn');
       const stopName = btn.getAttribute('data-stop-name');
-      // Imposta il testo iniziale in base allo stato
       btn.innerText = favStops.includes(stopName) ? '★ Rimuovi preferito' : '☆ Aggiungi ai preferiti';
       btn.addEventListener('click', () => {
         if (favStops.includes(stopName)) {
@@ -189,8 +193,9 @@
               radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
             }).addTo(map).bindPopup("Tu sei qui").openPopup();
             map.setView(latlng, 14);
-            locBtn.innerText = '📍 Disattiva localizzazione';
-            // Aggiorna distanze e fermata più vicina
+            locBtn.innerText = '📍 Localizzazione attivata';
+
+            // Calcola distanze e fermata più vicina
             fetch(stopDataUrl)
               .then(response => response.json())
               .then(stops => {
@@ -206,8 +211,10 @@
                   }
                 });
                 if (closestStop) {
-                  document.getElementById('closest-stop').innerText =
-                    `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
+                  document.getElementById('closest-stop').innerHTML =
+                    `<a href="\${closestStop.url}" target="_blank">
+                      🚏 Fermata più vicina: \${closestStop.name} (\${formatDistance(minDistance)})
+                    </a>`;
                 }
               });
           });
@@ -218,7 +225,7 @@
         map.removeLayer(userMarker);
         userMarker = null;
         locBtn.innerText = '📍 Attiva localizzazione';
-        document.getElementById('closest-stop').innerText = '';
+        document.getElementById('closest-stop').innerHTML = '';
         document.querySelectorAll('.distance-info').forEach(el => el.innerText = '');
       }
     });
