@@ -11,9 +11,37 @@
       font-family: 'Segoe UI', sans-serif;
       background-color: #f4f4f9;
     }
-    #map {
+    #sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 250px;
       height: 100vh;
-      width: 100%;
+      background: #fff;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+      padding: 10px;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+    #sidebar h2 {
+      margin-top: 0;
+      font-size: 18px;
+    }
+    #fav-list {
+      list-style: none;
+      padding: 0;
+    }
+    #fav-list li {
+      margin-bottom: 5px;
+      cursor: pointer;
+      color: #007bff;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      left: 250px;
+      right: 0;
+      bottom: 0;
     }
     .top-bar {
       position: absolute;
@@ -24,7 +52,7 @@
       padding: 10px 20px;
       border-radius: 20px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      z-index: 1000;
+      z-index: 1001;
       display: flex;
       gap: 10px;
       align-items: center;
@@ -38,21 +66,24 @@
       font-weight: bold;
       cursor: pointer;
     }
-    .distance-info {
-      font-size: 14px;
-      margin-top: 4px;
-    }
     .closest-stop {
       font-weight: bold;
       margin-top: 8px;
       color: #e91e63;
     }
+    .distance-info {
+      font-size: 14px;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
+  <div id="sidebar">
+    <h2>Fermate Preferite</h2>
+    <ul id="fav-list"></ul>
+  </div>
   <div class="top-bar">
-    <!-- Added id for button to allow text change -->
-    <button id="locBtn" onclick="getLocation()">📍 Attiva localizzazione</button>
+    <button id="locBtn">📍 Attiva localizzazione</button>
     <span id="closest-stop" class="closest-stop"></span>
   </div>
   <div id="map"></div>
@@ -64,8 +95,16 @@
       attribution: '© OpenStreetMap contributors',
     }).addTo(map);
 
-    let userLatLng = null;
-    const stopDataUrl = 'stops_fixed.json'; // Deve essere nel repo
+    const defaultIcon = new L.Icon.Default();
+    const starIcon = L.divIcon({
+      html: '<span style="font-size:24px; color: gold;">★</span>',
+      iconSize: [24, 24],
+      className: ''
+    });
+
+    const markerMap = {};
+    let favStops = [];
+    const stopDataUrl = 'stops_fixed.json';
 
     function calculateDistance(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
@@ -84,62 +123,105 @@
       return meters >= 1000 ? (meters / 1000).toFixed(2) + ' km' : Math.round(meters) + ' m';
     }
 
+    // Carica le fermate e crea i marker
     fetch(stopDataUrl)
       .then(response => response.json())
       .then(stops => {
         stops.forEach(stop => {
-          const marker = L.marker([stop.lat, stop.lon]).addTo(map);
-          // Fix: usa stop.url invece di stop.link
-          marker.bindPopup(
-            `<strong>${stop.name}</strong><br>` +
-            `<a href="${stop.url}" target="_blank">Vedi fermata</a>` +
-            `<div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>`
-          );
+          const marker = L.marker([stop.lat, stop.lon], { icon: defaultIcon }).addTo(map);
+          const popupContent = `
+            <strong>${stop.name}</strong><br>
+            <a href="${stop.url}" target="_blank">Vedi fermata</a><br>
+            <button class="fav-btn" data-stop-name="${stop.name}">☆ Aggiungi ai preferiti</button>
+            <div class="distance-info" id="dist-${stop.name.replace(/\s+/g, '_')}"></div>
+          `;
+          marker.bindPopup(popupContent);
+          markerMap[stop.name] = marker;
         });
       });
 
-    function getLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(showPosition);
-      } else {
-        alert("La geolocalizzazione non è supportata dal tuo browser.");
-      }
-    }
-
-    function showPosition(position) {
-      userLatLng = [position.coords.latitude, position.coords.longitude];
-      const userMarker = L.circleMarker(userLatLng, {
-        radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
-      }).addTo(map).bindPopup("Tu sei qui").openPopup();
-      map.setView(userLatLng, 14);
-
-      // Cambia testo del pulsante una volta attivata la geolocalizzazione
-      const btn = document.getElementById('locBtn');
-      btn.innerText = '📍 Localizzazione attiva';
-      btn.disabled = true; // opzionale, disabilita per evitare ulteriori click
-
-      fetch(stopDataUrl)
-        .then(response => response.json())
-        .then(stops => {
-          let closestStop = null;
-          let minDistance = Infinity;
-
-          stops.forEach(stop => {
-            const dist = calculateDistance(userLatLng[0], userLatLng[1], stop.lat, stop.lon);
-            if (dist < minDistance) {
-              minDistance = dist;
-              closestStop = stop;
-            }
-            const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, '_'));
-            if (el) el.innerText = "Distanza: " + formatDistance(dist);
-          });
-
-          if (closestStop) {
-            document.getElementById('closest-stop').innerText =
-              `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
+    // Aggiorna la sidebar dei preferiti
+    function updateSidebar() {
+      const list = document.getElementById('fav-list');
+      list.innerHTML = '';
+      favStops.forEach(name => {
+        const li = document.createElement('li');
+        li.innerText = name;
+        li.addEventListener('click', () => {
+          const marker = markerMap[name];
+          if (marker) {
+            map.setView(marker.getLatLng(), 16);
+            marker.openPopup();
           }
         });
+        list.appendChild(li);
+      });
     }
+
+    // Gestione del click sui bottoni 'fav-btn' nei popup
+    map.on('popupopen', e => {
+      const btn = e.popup._contentNode.querySelector('.fav-btn');
+      const stopName = btn.getAttribute('data-stop-name');
+      // Imposta il testo iniziale in base allo stato
+      btn.innerText = favStops.includes(stopName) ? '★ Rimuovi preferito' : '☆ Aggiungi ai preferiti';
+      btn.addEventListener('click', () => {
+        if (favStops.includes(stopName)) {
+          favStops = favStops.filter(n => n !== stopName);
+          markerMap[stopName].setIcon(defaultIcon);
+        } else {
+          favStops.push(stopName);
+          markerMap[stopName].setIcon(starIcon);
+        }
+        updateSidebar();
+        btn.innerText = favStops.includes(stopName) ? '★ Rimuovi preferito' : '☆ Aggiungi ai preferiti';
+      });
+    });
+
+    // Toggle localizzazione
+    let userMarker = null;
+    const locBtn = document.getElementById('locBtn');
+    locBtn.addEventListener('click', () => {
+      if (!userMarker) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(position => {
+            const latlng = [position.coords.latitude, position.coords.longitude];
+            userMarker = L.circleMarker(latlng, {
+              radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
+            }).addTo(map).bindPopup("Tu sei qui").openPopup();
+            map.setView(latlng, 14);
+            locBtn.innerText = '📍 Disattiva localizzazione';
+            // Aggiorna distanze e fermata più vicina
+            fetch(stopDataUrl)
+              .then(response => response.json())
+              .then(stops => {
+                let closestStop = null;
+                let minDistance = Infinity;
+                stops.forEach(stop => {
+                  const dist = calculateDistance(latlng[0], latlng[1], stop.lat, stop.lon);
+                  const el = document.getElementById("dist-" + stop.name.replace(/\s+/g, '_'));
+                  if (el) el.innerText = "Distanza: " + formatDistance(dist);
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    closestStop = stop;
+                  }
+                });
+                if (closestStop) {
+                  document.getElementById('closest-stop').innerText =
+                    `🚏 Fermata più vicina: ${closestStop.name} (${formatDistance(minDistance)})`;
+                }
+              });
+          });
+        } else {
+          alert("La geolocalizzazione non è supportata dal tuo browser.");
+        }
+      } else {
+        map.removeLayer(userMarker);
+        userMarker = null;
+        locBtn.innerText = '📍 Attiva localizzazione';
+        document.getElementById('closest-stop').innerText = '';
+        document.querySelectorAll('.distance-info').forEach(el => el.innerText = '');
+      }
+    });
   </script>
 </body>
 </html>
